@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnlinePrinting - 注册</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+<div id="page" class="site">
+    <div class="container">
+        <div class="login">
+            <div class="hero">
+                <h1>欢迎加入~</h1>
+                <p>已有账号?<br><a href="login.html">返回登录</a></p>
+            </div>
+            <div class="main">
+                <form id="registerForm">
+                    <p class="error-msg" id="errorMsg"></p>
+                    <p class="success-msg" id="successMsg"></p>
+                    <p>
+                        <input type="email" id="email" placeholder="邮箱" required>
+                    </p>
+                    <p>
+                        <input type="text" id="displayName" placeholder="名称（可选）">
+                    </p>
+                    <p class="password">
+                        <input type="password" id="password" placeholder="密码" required minlength="6">
+                        <i class="ri-eye-off-line" id="togglePassword"></i>
+                    </p>
+                    <p class="password">
+                        <input type="password" id="confirmPassword" placeholder="确认密码" required>
+                        <i class="ri-eye-off-line" id="toggleConfirm"></i>
+                    </p>
+                    <p>
+                        <input type="submit" class="submit" value="注册">
+                    </p>
+                </form>
+                <div class="options"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+const form = document.getElementById('registerForm');
+const errorMsg = document.getElementById('errorMsg');
+const successMsg = document.getElementById('successMsg');
+
+function setupPasswordToggle(toggleId, inputId) {
+    const toggle = document.getElementById(toggleId);
+    const input = document.getElementById(inputId);
+    toggle.addEventListener('click', function() {
+        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+        input.setAttribute('type', type);
+        this.classList.toggle('ri-eye-line');
+        this.classList.toggle('ri-eye-off-line');
+    });
+}
+
+setupPasswordToggle('togglePassword', 'password');
+setupPasswordToggle('toggleConfirm', 'confirmPassword');
+
+form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    errorMsg.textContent = '';
+    successMsg.textContent = '';
+    
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const displayName = document.getElementById('displayName').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const confirmPassword = document.getElementById('confirmPassword').value.trim();
+    
+    if (password !== confirmPassword) {
+        errorMsg.textContent = '两次密码输入不一致';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/users/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, display_name: displayName, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            successMsg.textContent = '注册成功！正在跳转登录...';
+            setTimeout(() => window.location.href = 'login.html', 1500);
+        } else {
+            errorMsg.textContent = data.detail || '注册失败';
+        }
+    } catch (err) {
+        errorMsg.textContent = '网络错误，请稍后重试';
+    }
+});
+</script>
+</body>
+</html>

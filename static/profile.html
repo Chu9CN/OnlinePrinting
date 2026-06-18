@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnlinePrinting - 个人信息</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+<div id="page" class="site">
+    <div class="container">
+        <div class="login">
+            <div class="hero">
+                <div class="hero-brand">
+                    <span class="hero-icon" aria-hidden="true"><i class="ri-user-settings-line"></i></span>
+                </div>
+                <h1>个人信息</h1>
+                <p class="hero-desc">修改显示名称与密码</p>
+            </div>
+            <div class="main">
+                <!-- 基本信息 -->
+                <form id="profileForm">
+                    <p class="success-msg" id="profileMsg"></p>
+                    <p class="error-msg" id="profileErr"></p>
+                    <p>
+                        <input type="email" id="email" placeholder="邮箱" disabled>
+                    </p>
+                    <p>
+                        <input type="text" id="displayName" placeholder="显示名称" maxlength="50">
+                    </p>
+                    <p>
+                        <input type="submit" class="submit" value="保存名称">
+                    </p>
+                </form>
+
+                <!-- 修改密码 -->
+                <form id="passwordForm" style="margin-top:24px;">
+                    <p class="success-msg" id="pwdMsg"></p>
+                    <p class="error-msg" id="pwdErr"></p>
+                    <p class="password">
+                        <input type="password" id="oldPassword" placeholder="当前密码" required>
+                        <i class="ri-eye-off-line toggle-pwd" data-target="oldPassword"></i>
+                    </p>
+                    <p class="password">
+                        <input type="password" id="newPassword" placeholder="新密码" required minlength="6">
+                        <i class="ri-eye-off-line toggle-pwd" data-target="newPassword"></i>
+                    </p>
+                    <p class="password">
+                        <input type="password" id="confirmPassword" placeholder="确认新密码" required>
+                        <i class="ri-eye-off-line toggle-pwd" data-target="confirmPassword"></i>
+                    </p>
+                    <p>
+                        <input type="submit" class="submit" value="修改密码">
+                    </p>
+                </form>
+                <div class="options" style="text-align:center;margin-top:16px;">
+                    <a href="index.html"><i class="ri-arrow-left-line"></i> 返回主页</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+const userStr = localStorage.getItem('user');
+
+if (!token || !userStr) {
+    window.location.href = 'login.html';
+}
+
+const userInfo = JSON.parse(userStr);
+
+// 填充当前用户信息
+document.getElementById('email').value = userInfo.email || '';
+document.getElementById('displayName').value = userInfo.display_name || userInfo.email.split('@')[0] || '';
+
+// 密码显示切换
+document.querySelectorAll('.toggle-pwd').forEach(icon => {
+    icon.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const input = document.getElementById(targetId);
+        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+        input.setAttribute('type', type);
+        this.classList.toggle('ri-eye-line');
+        this.classList.toggle('ri-eye-off-line');
+    });
+});
+
+// ========== 保存显示名称 ==========
+document.getElementById('profileForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const msg = document.getElementById('profileMsg');
+    const err = document.getElementById('profileErr');
+    msg.textContent = '';
+    err.textContent = '';
+
+    const displayName = document.getElementById('displayName').value.trim();
+    if (!displayName) {
+        err.textContent = '显示名称不能为空';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/users/me/update', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ display_name: displayName })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            msg.textContent = '名称已保存';
+            // 更新本地存储
+            userInfo.display_name = displayName;
+            localStorage.setItem('user', JSON.stringify(userInfo));
+        } else {
+            err.textContent = data.detail || '保存失败';
+        }
+    } catch (ex) {
+        err.textContent = '网络错误，请稍后重试';
+    }
+});
+
+// ========== 修改密码 ==========
+document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const msg = document.getElementById('pwdMsg');
+    const err = document.getElementById('pwdErr');
+    msg.textContent = '';
+    err.textContent = '';
+
+    const oldPassword = document.getElementById('oldPassword').value.trim();
+    const newPassword = document.getElementById('newPassword').value.trim();
+    const confirmPassword = document.getElementById('confirmPassword').value.trim();
+
+    if (newPassword !== confirmPassword) {
+        err.textContent = '两次输入的新密码不一致';
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        err.textContent = '新密码至少需要6位';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/users/change-password', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            msg.textContent = '密码修改成功';
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        } else {
+            err.textContent = data.detail || '修改失败';
+        }
+    } catch (ex) {
+        err.textContent = '网络错误，请稍后重试';
+    }
+});
+</script>
+</body>
+</html>

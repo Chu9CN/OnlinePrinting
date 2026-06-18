@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnlinePrinting</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="common.js"></script>
+</head>
+<body>
+<div class="app-container">
+    <!-- 顶部导航 -->
+    <header class="app-header">
+        <h2><i class="ri-file-paper-2-line"></i>OnlinePrinting</h2>
+        <div class="header-right">
+            <button class="header-btn" id="profileBtn" title="个人信息">
+                <i class="ri-user-line"></i>
+                <span id="username">-</span>
+                <span id="adminBadge" class="badge" style="display:none">管理员</span>
+            </button>
+            <button class="theme-toggle" id="themeToggle" title="切换主题" onclick="toggleTheme()">
+                <i class="ri-moon-line" id="themeIcon"></i>
+            </button>
+            <a href="admin.html" id="adminLink" class="header-btn" style="display:none">
+                <i class="ri-settings-3-line"></i> 管理
+            </a>
+            <button class="header-btn" onclick="logout()">
+                <i class="ri-logout-box-line"></i> 退出
+            </button>
+        </div>
+    </header>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <button class="btn btn-primary" onclick="showUploadModal()">
+                <i class="ri-upload-cloud-2-line"></i> 上传文件
+            </button>
+            <button class="btn btn-secondary" onclick="showMkdirModal()">
+                <i class="ri-folder-add-line"></i> 新建文件夹
+            </button>
+            <button class="btn btn-success" onclick="showConvertModal()" id="convertBtn">
+                <i class="ri-file-pdf-2-line"></i> 转PDF
+            </button>
+            <button class="btn btn-warning" onclick="showPrintModal()" id="printBtn">
+                <i class="ri-printer-line"></i> 打印
+            </button>
+            <div class="queue-status" id="queueStatus">
+                <i class="ri-file-list-3-line"></i>
+                打印队列: <span id="queueCount">0</span> 个任务
+                <span id="queuePosition"></span>
+            </div>
+            <div class="queue-status" id="printerStatus" title="打印机状态">
+                <i class="ri-printer-line"></i>
+                打印机: <span id="printerStatusText">检测中...</span>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <button class="btn btn-danger" id="batchDeleteBtn" onclick="batchDelete()" disabled>
+                <i class="ri-delete-bin-line"></i> 删除
+            </button>
+            <button class="btn btn-outline" onclick="refreshFiles()">
+                <i class="ri-refresh-line"></i> 刷新
+            </button>
+        </div>
+    </div>
+
+    <!-- 面包屑 -->
+    <div class="breadcrumb">
+        <a href="#" onclick="navigateTo(''); return false;">全部文件</a>
+        <span id="breadcrumb"></span>
+    </div>
+
+    <!-- 文件列表 -->
+    <div class="file-list-container">
+        <table class="file-table">
+            <thead>
+                <tr>
+                    <th class="col-checkbox" style="text-align:center"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                    <th class="col-type" style="text-align:center">格式</th>
+                    <th class="col-name">文件名</th>
+                    <th class="col-size">大小</th>
+                    <th class="col-time">修改时间</th>
+                    <th class="col-actions" style="text-align:right">操作</th>
+                </tr>
+            </thead>
+            <tbody id="fileList"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none">
+            <i class="ri-folder-open-line"></i>
+            <p>文件夹为空</p>
+        </div>
+    </div>
+
+</div>
+
+<!-- 上传弹窗 -->
+<div class="modal" id="uploadModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>上传文件</h3>
+            <button class="modal-close" onclick="closeModal('uploadModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>上传到</label>
+                <div class="upload-target-path">
+                    <i class="ri-folder-3-line"></i>
+                    <span id="uploadTargetPath">根目录</span>
+                </div>
+            </div>
+            <div class="upload-area" id="uploadArea">
+                <i class="ri-upload-cloud-2-line"></i>
+                <p>拖拽文件到此处或点击选择</p>
+                <p class="upload-hint">支持: PDF, DOC, DOCX, XLS, XLSX (单文件最大100MB) | 可打印或转PDF</p>
+                <p class="upload-hint">仅保留 <span class="red-text">30</span> 天</p>
+                <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" style="display:none">
+            </div>
+            <div id="uploadProgress" class="upload-progress" style="display:none"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 新建文件夹弹窗 -->
+<div class="modal" id="mkdirModal">
+    <div class="modal-content modal-small">
+        <div class="modal-header">
+            <h3>新建文件夹</h3>
+            <button class="modal-close" onclick="closeModal('mkdirModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="text" id="folderName" placeholder="文件夹名称" class="input-text">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('mkdirModal')">取消</button>
+            <button class="btn btn-primary" onclick="createFolder()">创建</button>
+        </div>
+    </div>
+</div>
+
+<!-- 重命名弹窗 -->
+<div class="modal" id="renameModal">
+    <div class="modal-content modal-small">
+        <div class="modal-header">
+            <h3>重命名</h3>
+            <button class="modal-close" onclick="closeModal('renameModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="text" id="newFileName" placeholder="新名称" class="input-text">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('renameModal')">取消</button>
+            <button class="btn btn-primary" onclick="doRename()">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 打印弹窗 -->
+<div class="modal" id="printModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>打印设置</h3>
+            <button class="modal-close" onclick="closeModal('printModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>选择文件</label>
+                <div id="printFiles" class="selected-files"></div>
+            </div>
+            <div class="form-group">
+                <label>打印机</label>
+                <select id="printerSelect" class="input-text"></select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>份数</label>
+                    <input type="number" id="printCopies" value="1" min="1" max="99" class="input-text">
+                </div>
+                <div class="form-group">
+                    <label>页码范围</label>
+                    <input type="text" id="pageRange" placeholder="如: 1,3-5" class="input-text">
+                </div>
+            </div>
+
+            <!-- 高级设置折叠区 -->
+            <div class="advanced-toggle" onclick="toggleAdvanced()">
+                <i class="ri-settings-3-line"></i> 高级设置
+                <i id="advancedIcon" class="ri-arrow-down-s-line"></i>
+            </div>
+            <div class="advanced-panel" id="advancedPanel" style="display:none">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>纸张方向</label>
+                        <select id="orientation" class="input-text">
+                            <option value="portrait">纵向</option>
+                            <option value="landscape">横向</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>双面打印</label>
+                        <select id="duplexSelect" class="input-text">
+                            <option value="">单面</option>
+                            <option value="duplexlong">双面-长边翻转</option>
+                            <option value="duplexshort">双面-短边翻转</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>色彩</label>
+                        <select id="colorMode" class="input-text">
+                            <option value="color">彩色</option>
+                            <option value="monochrome">黑白</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>缩放 <span id="pdfOnlyHint1" class="pdf-only-hint">(仅PDF)</span></label>
+                        <select id="scaleMode" class="input-text">
+                            <option value="fit">适合可打印区域</option>
+                            <option value="shrink">缩小过大部分</option>
+                            <option value="noscale">不缩放</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>纸张大小</label>
+                        <select id="paperSize" class="input-text">
+                            <option value="">默认</option>
+                            <option value="A3">A3</option>
+                            <option value="A4">A4</option>
+                            <option value="A5">A5</option>
+                            <option value="B4">B4</option>
+                            <option value="B5">B5</option>
+                            <option value="Letter">Letter</option>
+                            <option value="Legal">Legal</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>进纸托盘</label>
+                        <input type="number" id="paperTray" placeholder="自动选择" min="0" class="input-text">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>页面布局 <span id="pdfOnlyHint2" class="pdf-only-hint">(仅PDF)</span></label>
+                    <select id="pageLayout" class="input-text">
+                        <option value="1x">每页一版</option>
+                        <option value="book">小册子</option>
+                        <option value="booklet">小册子(双面)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('printModal')">取消</button>
+            <button class="btn btn-warning" onclick="submitPrint()">
+                <i class="ri-printer-line"></i> 开始打印
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 转PDF弹窗 -->
+<div class="modal" id="convertModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>转换为PDF</h3>
+            <button class="modal-close" onclick="closeModal('convertModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="convert-hint">选择要转换为PDF的文件 (支持 DOC, DOCX, XLS, XLSX)</p>
+            <div id="convertFiles" class="convert-files"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('convertModal')">取消</button>
+            <button class="btn btn-success" onclick="submitConvert()">
+                <i class="ri-file-pdf-2-line"></i> 开始转换
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast提示 -->
+<div class="toast" id="toast"></div>
+
+<!-- 自定义对话框 -->
+<div class="dialog-overlay" id="customDialog" style="display:none">
+    <div class="dialog-box">
+        <i class="dialog-icon" id="dialogIcon"></i>
+        <p class="dialog-message" id="dialogMessage"></p>
+        <input type="text" class="dialog-input" id="dialogInput" style="display:none">
+        <div class="dialog-actions">
+            <button class="dialog-btn dialog-btn-secondary" id="dialogCancel">取消</button>
+            <button class="dialog-btn dialog-btn-primary" id="dialogOk">确定</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPath = '';
+let currentFiles = [];
+let selectedFiles = new Set();
+let renameTarget = '';
+let userInfo = null;
+
+let autoRefreshTimer = null;
+let convertingCount = 0; // 正在转换的文件数，>0 时自动刷新文件列表
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();//检查登录状态
+    loadFiles();
+    loadPrinterList();
+    updateQueueStatus();
+    setInterval(updateQueueStatus, 5000);
+    setInterval(loadPrinterList, 30000); // 每30秒刷新打印机状态
+    updatePrintBtn();
+    document.getElementById('profileBtn').addEventListener('click', () => {
+        window.location.href = 'profile.html';
+    });
+});
+
+function startAutoRefresh() {
+    if (autoRefreshTimer) return;
+    autoRefreshTimer = setInterval(() => {
+        loadFiles(true); // 静默刷新，不重置选中状态
+        convertingCount--;
+        if (convertingCount <= 0) {
+            convertingCount = 0;
+            stopAutoRefresh();
+        }
+    }, 3000);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
+}
+
+function checkAuth() {
+    const token = getToken();
+    const user = localStorage.getItem('user');
+    if (!token || !user) {
+        window.location.href = 'login.html';
+        return;
+    }
+    userInfo = JSON.parse(user);
+    if (userInfo.force_password_change) {
+        window.location.href = 'change-password.html';
+        return;
+    }
+    document.getElementById('username').textContent = userInfo.display_name || userInfo.email.split('@')[0];
+    if (userInfo.is_admin) {
+        document.getElementById('adminBadge').style.display = 'inline';
+        document.getElementById('adminLink').style.display = 'inline';
+    }
+}
+
+// ========== 文件列表 ==========
+
+async function loadFiles(silent = false) {
+    try {
+        const res = await fetch(`${API_BASE}/files/list?subpath=${encodeURIComponent(currentPath)}`, {
+            headers: getHeaders()
+        });
+        if (res.status === 401) {
+            logout();
+            return;
+        }
+        currentFiles = await res.json();
+        renderFiles();
+        updateBreadcrumb();
+    } catch (err) {
+        if (!silent) showToast('加载文件失败', 'error');
+    }
+}
+
+function renderFiles() {
+    const tbody = document.getElementById('fileList');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (currentFiles.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.style.display = 'flex';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    // 每次渲染时确保全选复选框未选中（默认不全选）
+    document.getElementById('selectAll').checked = false;
+    updatePrintBtn();
+    tbody.innerHTML = currentFiles.map(f => `
+        <tr class="${selectedFiles.has(f.name) ? 'selected' : ''}" data-name="${f.name}" data-isdir="${f.is_dir}">
+            <td class="col-checkbox">
+                <input type="checkbox" ${selectedFiles.has(f.name) ? 'checked' : ''} 
+                    onchange="toggleSelect('${f.name}')">
+            </td>
+            <td class="col-type" onclick="handleClick('${f.name}', ${f.is_dir})">
+                ${getFileBadge(f)}
+            </td>
+            <td class="col-name" onclick="handleClick('${f.name}', ${f.is_dir})">
+                <span>${f.name.replace('/', '')}</span>
+            </td>
+            <td class="col-size">${f.is_dir ? '-' : formatSize(f.size)}</td>
+            <td class="col-time">${formatDate(f.modified)}</td>
+            <td class="col-actions">
+                ${f.is_dir ? '' : `
+                    <button class="icon-btn" onclick="downloadFile('${f.name}')" title="下载">
+                        <i class="ri-download-line"></i>
+                    </button>
+                    <button class="icon-btn${isPrintable(f.name) ? '' : ' disabled'}" onclick="${isPrintable(f.name) ? `showPrintSingle('${f.name}')` : ''}" title="${isPrintable(f.name) ? '打印' : '仅支持打印 PDF/Word/Excel 文件'}" ${isPrintable(f.name) ? '' : 'disabled'}>
+                        <i class="ri-printer-line"></i>
+                    </button>
+                    ${isConvertible(f.name) ? `
+                        <button class="icon-btn" onclick="showConvertSingle('${f.name}')" title="转PDF">
+                            <i class="ri-refresh-line"></i>
+                        </button>
+                    ` : '<span style="display:inline-block;width:36px"></span>'}
+                `}
+                <button class="icon-btn" onclick="showRename('${f.name}')" title="重命名">
+                    <i class="ri-edit-line"></i>
+                </button>
+                <button class="icon-btn danger" onclick="deleteItem('${f.name}')" title="删除">
+                    <i class="ri-delete-bin-line"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getFileBadge(f) {
+    if (f.is_dir) return '<span class="file-badge badge-dir">文件夹</span>';
+    const ext = f.name.split('.').pop().toLowerCase();
+    const map = {
+        'pdf':  '<span class="file-badge badge-pdf">PDF</span>',
+        'doc':  '<span class="file-badge badge-word">DOC</span>',
+        'docx': '<span class="file-badge badge-word">DOCX</span>',
+        'xls':  '<span class="file-badge badge-excel">XLS</span>',
+        'xlsx': '<span class="file-badge badge-excel">XLSX</span>',
+    };
+    return map[ext] || '<span class="file-badge badge-other">' + ext.toUpperCase() + '</span>';
+}
+
+function isConvertible(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    return ['doc', 'docx', 'xls', 'xlsx'].includes(ext);
+}
+
+function isPrintable(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    return ['pdf', 'doc', 'docx', 'xls', 'xlsx'].includes(ext);
+}
+
+function isPdf(name) {
+    return name.split('.').pop().toLowerCase() === 'pdf';
+}
+
+function isOffice(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    return ['doc', 'docx', 'xls', 'xlsx'].includes(ext);
+}
+
+function updateToolbarBtns() {
+    const printBtn = document.getElementById('printBtn');
+    const delBtn = document.getElementById('batchDeleteBtn');
+    const hasPrintable = Array.from(selectedFiles).some(n => {
+        const f = currentFiles.find(x => x.name === n);
+        return f && !f.is_dir && isPrintable(n);
+    });
+    const hasSelected = selectedFiles.size > 0;
+    printBtn.disabled = !hasPrintable;
+    delBtn.disabled = !hasSelected;
+}
+
+function updatePrintBtn() { updateToolbarBtns(); }
+
+function formatSize(bytes) {
+    if (bytes === 0) return '-';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function handleClick(name, isDir) {
+    if (isDir) {
+        currentPath = currentPath ? `${currentPath}/${name.replace('/','')}` : name.replace('/','');
+        selectedFiles.clear();
+        loadFiles();
+    }
+}
+
+function navigateTo(path) {
+    currentPath = path;
+    selectedFiles.clear();
+    loadFiles();
+}
+
+function updateBreadcrumb() {
+    const bc = document.getElementById('breadcrumb');
+    if (!currentPath) {
+        bc.innerHTML = '';
+        return;
+    }
+    const parts = currentPath.split('/');
+    let html = '';
+    let path = '';
+    for (const part of parts) {
+        path = path ? `${path}/${part}` : part;
+        html += ` <i class="ri-arrow-right-s-line"></i> <a href="#" onclick="navigateTo('${path}'); return false;">${part}</a>`;
+    }
+    bc.innerHTML = html;
+}
+
+// ========== 选择操作 ==========
+
+function toggleSelect(name) {
+    if (selectedFiles.has(name)) {
+        selectedFiles.delete(name);
+    } else {
+        selectedFiles.add(name);
+    }
+    renderFiles();
+    updatePrintBtn();
+}
+
+function toggleSelectAll() {
+    const checked = document.getElementById('selectAll').checked;
+    if (checked) {
+        currentFiles.forEach(f => selectedFiles.add(f.name));
+    } else {
+        selectedFiles.clear();
+    }
+    renderFiles();
+    updatePrintBtn();
+}
+
+function refreshFiles() {
+    loadFiles();
+}
+
+// ========== 上传 ==========
+
+function showUploadModal() {
+    document.getElementById('uploadModal').style.display = 'flex';
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('uploadProgress').innerHTML = '';
+    // 显示当前上传目标路径
+    document.getElementById('uploadTargetPath').textContent = currentPath ? currentPath : '根目录';
+}
+
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('dragover');
+});
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+async function handleFiles(files) {
+    if (files.length === 0) return;
+    
+    const progressDiv = document.getElementById('uploadProgress');
+    progressDiv.style.display = 'block';
+    progressDiv.innerHTML = '<p>正在上传...</p>';
+    
+    const formData = new FormData();
+    for (const file of files) {
+        formData.append('files', file);
+    }
+    if (currentPath) {
+        formData.append('subpath', currentPath);
+    }
+    
+    try {
+        const res = await fetch(`${API_BASE}/files/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${getToken()}` },
+            body: formData
+        });
+        
+        const data = await res.json();
+        let msg = '';
+        if (data.uploaded && data.uploaded.length > 0) {
+            msg += `成功上传 ${data.uploaded.length} 个文件`;
+        }
+        if (data.failed && data.failed.length > 0) {
+            msg += `<br>失败 ${data.failed.length} 个: ${data.failed.map(f => f.filename).join(', ')}`;
+        }
+        progressDiv.innerHTML = `<p class="${data.failed?.length ? 'text-warning' : 'text-success'}">${msg}</p>`;
+        setTimeout(() => { closeModal('uploadModal'); loadFiles(); }, 1500);
+    } catch (err) {
+        progressDiv.innerHTML = '<p class="text-error">上传失败</p>';
+    }
+}
+
+// ========== 新建文件夹 ==========
+
+function showMkdirModal() {
+    document.getElementById('mkdirModal').style.display = 'flex';
+    document.getElementById('folderName').value = '';
+    document.getElementById('folderName').focus();
+}
+
+async function createFolder() {
+    const name = document.getElementById('folderName').value.trim();
+    if (!name) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/files/mkdir`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ name, subpath: currentPath })
+        });
+        
+        if (res.ok) {
+            showToast('文件夹创建成功', 'success');
+            closeModal('mkdirModal');
+            loadFiles();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || '创建失败', 'error');
+        }
+    } catch (err) {
+        showToast('创建失败', 'error');
+    }
+}
+
+// ========== 重命名 ==========
+
+function showRename(name) {
+    renameTarget = name;
+    document.getElementById('renameModal').style.display = 'flex';
+    document.getElementById('newFileName').value = name.replace('/', '');
+    document.getElementById('newFileName').focus();
+}
+
+async function doRename() {
+    const newName = document.getElementById('newFileName').value.trim();
+    if (!newName) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/files/rename`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ old_name: renameTarget, new_name: newName, subpath: currentPath })
+        });
+        
+        if (res.ok) {
+            showToast('重命名成功', 'success');
+            closeModal('renameModal');
+            loadFiles();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || '重命名失败', 'error');
+        }
+    } catch (err) {
+        showToast('重命名失败', 'error');
+    }
+}
+
+// ========== 删除 ==========
+
+async function deleteItem(name) {
+    if (!await confirm(`确定要删除 "${name}" 吗?`)) return;
+    
+    const fullPath = getFullPath(name);
+    try {
+        const res = await fetch(`${API_BASE}/files/delete`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ paths: [fullPath] })
+        });
+        
+        const data = await res.json();
+        if (data.deleted && data.deleted.length > 0) {
+            showToast('删除成功', 'success');
+            selectedFiles.delete(name);
+            loadFiles();
+        } else {
+            showToast(data.failed?.[0]?.reason || '删除失败', 'error');
+        }
+    } catch (err) {
+        showToast('删除失败', 'error');
+    }
+}
+
+async function batchDelete() {
+    if (selectedFiles.size === 0) return;
+    const names = Array.from(selectedFiles);
+    const count = names.length;
+    if (!await confirm(`确定要删除选中的 ${count} 个项目吗?`)) return;
+
+    const paths = names.map(n => getFullPath(n));
+    try {
+        const res = await fetch(`${API_BASE}/files/delete`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ paths })
+        });
+        const data = await res.json();
+        if (data.deleted && data.deleted.length > 0) {
+            showToast(`成功删除 ${data.deleted.length} 个项目`, 'success');
+            selectedFiles.clear();
+            loadFiles();
+        }
+        if (data.failed && data.failed.length > 0) {
+            showToast(`${data.failed.length} 个删除失败`, 'error');
+        }
+    } catch (err) {
+        showToast('删除失败', 'error');
+    }
+}
+
+// ========== 下载 ==========
+
+async function downloadFile(name) {
+    const path = currentPath ? `${currentPath}/${name}` : name;
+    try {
+        const res = await fetch(`${API_BASE}/files/download?path=${encodeURIComponent(path)}`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.detail || '下载失败', 'error');
+            return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        showToast('下载失败', 'error');
+    }
+}
+
+// ========== 打印机 ==========
+
+async function loadPrinterList() {
+    try {
+        const res = await fetch(`${API_BASE}/print/printers`, { headers: getHeaders() });
+        const printers = await res.json();
+        const select = document.getElementById('printerSelect');
+        const statusEl = document.getElementById('printerStatusText');
+
+        if (printers.length === 0) {
+            select.innerHTML = '<option value="" disabled>无可用打印机</option>';
+            if (statusEl) {
+                statusEl.innerHTML = '<span style="color:var(--danger)">无打印机</span>';
+            }
+            return;
+        }
+
+        const available = printers.filter(p => p.is_available);
+        const unavailableCount = printers.length - available.length;
+
+        // 更新工具栏打印机状态
+        if (statusEl) {
+            if (available.length === 0) {
+                statusEl.innerHTML = `<span style="color:var(--danger)">全部不可用 (${printers.length}台)</span>`;
+            } else if (unavailableCount > 0) {
+                statusEl.innerHTML = `<span style="color:var(--warning)">${available.length}台可用，${unavailableCount}台异常</span>`;
+            } else {
+                statusEl.innerHTML = `<span style="color:var(--success)">${printers.length}台就绪</span>`;
+            }
+        }
+
+        if (available.length === 0) {
+            select.innerHTML = '<option value="" disabled>所有打印机均不可用</option>';
+            return;
+        }
+
+        select.innerHTML = printers.map(p => {
+            const statusLabel = p.status !== '就绪' ? ` [${p.status}]` : '';
+            const label = `${p.name}${p.is_default ? ' (默认)' : ''}${statusLabel}`;
+            return `<option value="${p.name}" ${p.is_default && p.is_available ? 'selected' : ''} ${!p.is_available ? 'disabled' : ''}>${label}</option>`;
+        }).join('');
+
+        // 如果没有选中项，选第一个可用的
+        if (!select.value || select.value === '') {
+            const firstAvailable = printers.find(p => p.is_available);
+            if (firstAvailable) select.value = firstAvailable.name;
+        }
+    } catch (err) {
+        console.error('加载打印机失败');
+        const select = document.getElementById('printerSelect');
+        select.innerHTML = '<option value="" disabled>无法加载打印机列表</option>';
+        const statusEl = document.getElementById('printerStatusText');
+        if (statusEl) {
+            statusEl.innerHTML = '<span style="color:var(--danger)">加载失败</span>';
+        }
+    }
+}
+
+function showPrintModal() {
+    const files = Array.from(selectedFiles).filter(n => {
+        const f = currentFiles.find(x => x.name === n);
+        return f && !f.is_dir && isPrintable(n);
+    });
+    
+    if (files.length === 0) {
+        showToast('请先选择要打印的文件', 'warning');
+        return;
+    }
+    
+    // 检查是否包含 Office 文件
+    const hasOffice = files.some(f => isOffice(f));
+    const hasPdf = files.some(f => isPdf(f));
+    
+    // PDF 专用选项：缩放和页面布局 — Office 文件不适用则禁用
+    const scaleEl = document.getElementById('scaleMode');
+    const layoutEl = document.getElementById('pageLayout');
+    const hint1 = document.getElementById('pdfOnlyHint1');
+    const hint2 = document.getElementById('pdfOnlyHint2');
+    
+    if (hasPdf && !hasOffice) {
+        // 只有 PDF：启用缩放和布局
+        scaleEl.disabled = false;
+        layoutEl.disabled = false;
+        if (hint1) hint1.style.display = 'none';
+        if (hint2) hint2.style.display = 'none';
+    } else if (hasOffice && !hasPdf) {
+        // 只有 Office：禁用缩放和布局（由 win32print 控制）
+        scaleEl.disabled = true;
+        layoutEl.disabled = true;
+        if (hint1) hint1.style.display = 'inline';
+        if (hint2) hint2.style.display = 'inline';
+    } else {
+        // 混合：缩放和布局对 Office 不生效，但保留可用
+        scaleEl.disabled = false;
+        layoutEl.disabled = false;
+        if (hint1) hint1.style.display = 'inline';
+        if (hint2) hint2.style.display = 'inline';
+    }
+    
+    document.getElementById('printFiles').innerHTML = files.map(f => {
+        const icon = isOffice(f) ? 'ri-file-word-2-line' : 'ri-file-pdf-2-line';
+        return `<span class="file-tag"><i class="${icon}"></i> ${f}</span>`;
+    }).join('');
+    document.getElementById('printModal').style.display = 'flex';
+    loadPrinterList();
+}
+
+function showPrintSingle(name) {
+    selectedFiles.clear();
+    selectedFiles.add(name);
+    showPrintModal();
+}
+
+async function submitPrint() {
+    const files = Array.from(selectedFiles).filter(n => {
+        const f = currentFiles.find(x => x.name === n);
+        return f && !f.is_dir && isPrintable(n);
+    }).map(n => getFullPath(n));
+    
+    if (files.length === 0) return;
+    
+    const printer = document.getElementById('printerSelect').value;
+    const copies = parseInt(document.getElementById('printCopies').value) || 1;
+    const pageRange = document.getElementById('pageRange').value.trim() || null;
+    const duplex = document.getElementById('duplexSelect').value || null;
+    const orientation = document.getElementById('orientation').value;
+    const colorMode = document.getElementById('colorMode').value;
+    const scaleMode = document.getElementById('scaleMode').value;
+    const paperSize = document.getElementById('paperSize').value || null;
+    const paperTrayVal = document.getElementById('paperTray').value.trim();
+    const paperTray = paperTrayVal ? parseInt(paperTrayVal) : null;
+    const pageLayout = document.getElementById('pageLayout').value;
+    
+    try {
+        const res = await fetch(`${API_BASE}/print/batch`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({
+                filenames: files, printer: printer || null, copies,
+                duplex, page_range: pageRange,
+                orientation, color_mode: colorMode, scale_mode: scaleMode,
+                paper_size: paperSize, paper_tray: paperTray, page_layout: pageLayout
+            })
+        });
+        
+        const data = await res.json();
+        const successCount = data.tasks.filter(t => t.task_id > 0).length;
+        showToast(`已加入打印队列 ${successCount} 个任务`, 'success');
+        closeModal('printModal');
+        selectedFiles.clear();
+        updateQueueStatus();
+    } catch (err) {
+        showToast('提交打印失败', 'error');
+    }
+}
+
+async function updateQueueStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/print/queue-status`, { headers: getHeaders() });
+        const data = await res.json();
+        document.getElementById('queueCount').textContent = data.queue_length;
+        document.getElementById('queuePosition').textContent = data.position ? `(你的位置: ${data.position})` : '';
+    } catch (err) {}
+}
+
+function toggleAdvanced() {
+    const panel = document.getElementById('advancedPanel');
+    const icon = document.getElementById('advancedIcon');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        icon.className = 'ri-arrow-up-s-line';
+    } else {
+        panel.style.display = 'none';
+        icon.className = 'ri-arrow-down-s-line';
+    }
+}
+
+// ========== 转PDF ==========
+
+function getFullPath(name) {
+    return currentPath ? `${currentPath}/${name}` : name;
+}
+
+function showConvertModal() {
+    const files = Array.from(selectedFiles).filter(n => isConvertible(n));
+    
+    if (files.length === 0) {
+        const allConvertible = currentFiles.filter(f => !f.is_dir && isConvertible(f.name)).map(f => f.name);
+        if (allConvertible.length === 0) {
+            showToast('当前无可转换的文件', 'warning');
+            return;
+        }
+        document.getElementById('convertFiles').innerHTML = allConvertible.map(f => 
+            `<label class="file-checkbox"><input type="checkbox" value="${getFullPath(f)}" checked> ${f}</label>`
+        ).join('');
+    } else {
+        document.getElementById('convertFiles').innerHTML = files.map(f => 
+            `<label class="file-checkbox"><input type="checkbox" value="${getFullPath(f)}" checked> ${f}</label>`
+        ).join('');
+    }
+    
+    document.getElementById('convertModal').style.display = 'flex';
+}
+
+function showConvertSingle(name) {
+    selectedFiles.clear();
+    selectedFiles.add(name);
+    // 直接构造带路径的 checkbox，不走 selectedFiles 过滤
+    const fullPath = getFullPath(name);
+    document.getElementById('convertFiles').innerHTML = 
+        `<label class="file-checkbox"><input type="checkbox" value="${fullPath}" checked> ${name}</label>`;
+    document.getElementById('convertModal').style.display = 'flex';
+}
+
+async function submitConvert() {
+    const checkboxes = document.querySelectorAll('#convertFiles input:checked');
+    const files = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (files.length === 0) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/topdf/convert`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ filenames: files })
+        });
+        
+        const data = await res.json();
+        const successCount = data.results.filter(r => r.success).length;
+        showToast(`${successCount} 个文件开始转换`, 'success');
+        closeModal('convertModal');
+        if (successCount > 0) {
+            // 每3秒自动刷新文件列表，直到所有转换任务完成（每次刷新消耗一个计数）
+            convertingCount = successCount * 10; // 最多等待 successCount*10 次（约30秒/个）
+            startAutoRefresh();
+        }
+    } catch (err) {
+        showToast('转换失败', 'error');
+    }
+}
+</script>
+</body>
+</html>

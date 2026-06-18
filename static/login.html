@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnlinePrinting - 登录</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+<div id="page" class="site">
+    <div class="container">
+        <div class="login">
+            <div class="hero">
+                <div class="hero-brand">
+                    <span class="hero-icon" aria-hidden="true"><i class="ri-printer-line"></i></span>
+                </div>
+                <h1>OnlinePrinting</h1>
+                <p class="hero-desc">如果你没有账号，可以<a href="register.html">点击这里</a>进行注册。</p>
+            </div>
+            <div class="main">
+                <form id="loginForm">
+                    <p class="error-msg" id="errorMsg"></p>
+                    <p>
+                        <input type="email" id="email" placeholder="邮箱" required>
+                    </p>
+                    <p class="password">
+                        <input type="password" id="password" placeholder="密码" required>
+                        <i class="ri-eye-off-line" id="togglePassword"></i>
+                    </p>
+                    <p>
+                        <input type="submit" class="submit" value="登录">
+                    </p>
+                </form>
+                <div class="options"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+const loginForm = document.getElementById('loginForm');
+const errorMsg = document.getElementById('errorMsg');
+const togglePassword = document.getElementById('togglePassword');
+const passwordInput = document.getElementById('password');
+
+togglePassword.addEventListener('click', function() {
+    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+    passwordInput.setAttribute('type', type);
+    this.classList.toggle('ri-eye-line');
+    this.classList.toggle('ri-eye-off-line');
+});
+
+loginForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    errorMsg.textContent = '';
+    
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const password = document.getElementById('password').value;
+    
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            localStorage.setItem('token', data.access_token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            if (data.user.force_password_change) {
+                window.location.href = 'change-password.html';
+            } else {
+                window.location.href = 'index.html';
+            }
+        } else {
+            errorMsg.textContent = data.detail || '登录失败';
+        }
+    } catch (err) {
+        errorMsg.textContent = '网络错误，请稍后重试';
+    }
+});
+</script>
+</body>
+</html>
